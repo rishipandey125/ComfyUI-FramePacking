@@ -73,3 +73,41 @@ class PackFrames:
 
         packed_sheets_tensor = [convert_numpy_to_tensor(sheet) for sheet in packed_sheets]
         return torch.stack(packed_sheets_tensor), frame_width, frame_height
+
+class UnpackFrames:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": ("IMAGE", {"tooltip": "Input images to be packed"}),
+                "frame_width": ("INT", {"default": 512, "min": 1, "max": 5120, "step": 1}),
+                "frame_height": ("INT", {"default": 512, "min": 1, "max": 5120, "step": 1}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("frames",)
+    FUNCTION = "unpack_frames"
+    CATEGORY = "FramePack"
+
+    def unpack_frames(self, images, frame_width, frame_height):
+        # Convert tensor of images to numpy for processing
+        images_np = convert_tensor_to_numpy(images)
+
+        unpacked_frames = []
+        
+        for image in images_np:
+            rows = image.shape[0] // frame_height
+            cols = image.shape[1] // frame_width
+            for row in range(rows):
+                for col in range(cols):
+                    x = col * frame_width
+                    y = row * frame_height
+                    frame = image[y:y + frame_height, x:x + frame_width]
+                    # Check if the frame is completely black
+                    if np.any(frame > 0):  # Skip completely black frames
+                        unpacked_frames.append(frame)
+        
+        # Convert unpacked frames back to tensors
+        unpacked_frames_tensors = [convert_numpy_to_tensor(frame) for frame in unpacked_frames]
+        return torch.stack(unpacked_frames_tensors),

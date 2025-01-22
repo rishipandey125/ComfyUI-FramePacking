@@ -10,7 +10,7 @@ from .nodes import *
 
 NODE_CLASS_MAPPINGS = {
     "Pack Frames": PackFrames,
-    # "Unpack Frames": UnpackFrames,
+    "Unpack Frames": UnpackFrames,
 }
 
 
