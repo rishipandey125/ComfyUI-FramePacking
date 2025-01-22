@@ -79,34 +79,43 @@ class UnpackFrames:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "images": ("IMAGE", {"tooltip": "Input images to be packed"}),
+                "images": ("IMAGE", {"tooltip": "Sprite sheets containing packed images"}),
                 "frame_width": ("INT", {"default": 512, "min": 1, "max": 5120, "step": 1}),
                 "frame_height": ("INT", {"default": 512, "min": 1, "max": 5120, "step": 1}),
             },
+            "optional": {
+                "frame_count": ("INT", {"default": None, "min": 1, "tooltip": "Maximum number of frames to extract"})
+            }
         }
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("frames",)
     FUNCTION = "unpack_frames"
-    CATEGORY = "FramePack"
+    CATEGORY = "FrameUnpack"
 
-    def unpack_frames(self, images, frame_width, frame_height):
+    def unpack_frames(self, images, frame_width, frame_height, frame_count=None):
         # Convert tensor of images to numpy for processing
         images_np = convert_tensor_to_numpy(images)
 
         unpacked_frames = []
+        current_frame_count = 0
         
         for image in images_np:
             rows = image.shape[0] // frame_height
             cols = image.shape[1] // frame_width
             for row in range(rows):
                 for col in range(cols):
+                    if frame_count is not None and current_frame_count >= frame_count:
+                        break
                     x = col * frame_width
                     y = row * frame_height
                     frame = image[y:y + frame_height, x:x + frame_width]
-                    # Check if the frame is completely black
-                    if np.any(frame > 0):  # Skip completely black frames
-                        unpacked_frames.append(frame)
+                    unpacked_frames.append(frame)
+                    current_frame_count += 1
+                if frame_count is not None and current_frame_count >= frame_count:
+                    break
+            if frame_count is not None and current_frame_count >= frame_count:
+                break
         
         # Convert unpacked frames back to tensors
         unpacked_frames_tensors = [convert_numpy_to_tensor(frame) for frame in unpacked_frames]
