@@ -14,18 +14,14 @@ import torch
 
 from PIL import Image
 
-def convert_tensor_to_cv2_images(tensor):
-    images_np = (tensor.numpy() * 255).astype(np.uint8)  # Assuming the tensor is from PyTorch and needs conversion
-    images = [cv2.cvtColor(img, cv2.COLOR_RGB2BGR) for img in images_np]
-    return images
+def convert_tensor_to_numpy(tensor):
+    """ Convert tensor to numpy array and scale it properly for image processing. """
+    return (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
 
-def convert_numpy_to_pil(numpy_image):
-    if numpy_image.ndim == 3 and numpy_image.shape[2] == 3:  # Typical HWC format for color images
-        return Image.fromarray(cv2.cvtColor(numpy_image, cv2.COLOR_BGR2RGB), 'RGB')
-    else:
-        raise ValueError("Image array shape is not suitable for conversion to PIL Image")
-
-
+def convert_numpy_to_tensor(numpy_image):
+    """ Convert processed numpy image back to tensor and normalize it. """
+    return torch.from_numpy(numpy_image).float() / 255
+    
 class PackFrames:
     @classmethod
     def INPUT_TYPES(s):
@@ -48,16 +44,15 @@ class PackFrames:
     CATEGORY = "FramePack"
 
     def pack_frames(self, images, num_sheets, sheet_width, sheet_height, min_frame_width, min_frame_height):
-        images_cv2 = convert_tensor_to_cv2_images(images)
+        images_np = convert_tensor_to_numpy(images)
 
         # Calculate frames and dimensions
-        total_frames = len(images_cv2)
+        total_frames = images_np.shape[0]
         frames_per_sheet = math.ceil(total_frames / num_sheets)
         side_count = math.ceil(math.sqrt(frames_per_sheet))
         frame_width = max(min_frame_width, sheet_width // side_count)
         frame_height = max(min_frame_height, sheet_height // side_count)
 
-        # Pack the frames into sprite sheets
         packed_sheets = []
         current_frame = 0
         for sheet_index in range(num_sheets):
@@ -66,7 +61,7 @@ class PackFrames:
                 for col in range(side_count):
                     if current_frame >= total_frames:
                         break
-                    frame = images_cv2[current_frame]
+                    frame = images_np[current_frame]
                     resized_frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
                     x = col * frame_width
                     y = row * frame_height
@@ -78,6 +73,9 @@ class PackFrames:
             if current_frame >= total_frames:
                 break
 
-        packed_sheets_pil = [convert_numpy_to_pil(sheet) for sheet in packed_sheets if sheet.ndim == 3 and sheet.shape[2] == 3]
-        print(packed_sheets_pil)
-        return (packed_sheets_pil, frame_width, frame_height,)
+
+        # packed_sheets_tensor = numpy_to_tensor(packed_sheets)
+        packed_sheets_tensor = [convert_numpy_to_tensor(sheet) for sheet in packed_sheets]
+
+
+        return (torch.stack(packed_sheets_tensor), frame_width, frame_height,)
