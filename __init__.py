@@ -2,11 +2,15 @@ from .nodes import *
 
 
 #  Map all your custom nodes classes with the names that will be displayed in the UI.
+
+#nodes I will need 
+
+#Pack Frames 
+#Unpack Frames
+
 NODE_CLASS_MAPPINGS = {
-    "(Down)Load My Model": MyModelLoader,
-    "Calculate Plus": CalculatePlus,
-    "Calculate Minus": CalculateMinus,
-    "Example Output Node": ExampleOutputNode,
+    "Pack Frames": PackFrames,
+    # "Unpack Frames": UnpackFrames,
 }
 
 
