@@ -9,6 +9,7 @@ from .nodes import *
 #Unpack Frames
 
 NODE_CLASS_MAPPINGS = {
+    "Add Grid Boundaries": AddGridBoundaries,
     "Pack Frames": PackFrames,
     "Unpack Frames": UnpackFrames,
 }

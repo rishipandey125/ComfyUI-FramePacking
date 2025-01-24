@@ -21,7 +21,47 @@ def convert_tensor_to_numpy(tensor):
 def convert_numpy_to_tensor(numpy_image):
     """ Convert processed numpy image back to tensor and normalize it. """
     return torch.from_numpy(numpy_image).float() / 255
-    
+
+class AddGridBoundaries:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": ("IMAGE", {"tooltip": "Input images (edge maps) to add grid boundaries"}),
+                "cells_per_row": ("INT", {"default": 4, "min": 1, "tooltip": "Number of grid cells per row"}),
+                "cells_per_col": ("INT", {"default": 4, "min": 1, "tooltip": "Number of grid cells per column"}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images_with_grid",)
+    FUNCTION = "add_grid_boundaries"
+    CATEGORY = "Image Processing"
+
+    def add_grid_boundaries(self, images, cells_per_row, cells_per_col):
+        # Convert tensor images to numpy array
+        images_np = convert_tensor_to_numpy(images)
+        
+        # Iterate over each image to add grid lines
+        for image in images_np:
+            height, width, channels = image.shape
+            row_height = height // cells_per_col
+            col_width = width // cells_per_row
+            
+            # Draw grid lines
+            for i in range(1, cells_per_row):
+                x = i * col_width
+                image[:, x - 1:x + 1] = 255  # Vertical grid line, adjust thickness as needed
+            
+            for j in range(1, cells_per_col):
+                y = j * row_height
+                image[y - 1:y + 1, :] = 255  # Horizontal grid line, adjust thickness as needed
+        
+        # Convert numpy images back to tensor
+        images_with_grid_tensor = convert_numpy_to_tensor(images_np)
+        
+        return (images_with_grid_tensor,)
+
 class PackFrames:
     @classmethod
     def INPUT_TYPES(cls):
@@ -38,8 +78,8 @@ class PackFrames:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "INT")
-    RETURN_NAMES = ("sheets", "frame_width", "frame_height")
+    RETURN_TYPES = ("IMAGE", "INT", "INT", "INT", "INT")
+    RETURN_NAMES = ("sheets", "frame_width", "frame_height", "cells_per_row", "cells_per_col")
     FUNCTION = "pack_frames"
     CATEGORY = "FramePack"
 
@@ -51,14 +91,16 @@ class PackFrames:
         side_count = math.ceil(math.sqrt(frames_per_sheet))
         frame_width = max(min_frame_width, sheet_width // side_count)
         frame_height = max(min_frame_height, sheet_height // side_count)
+        cells_per_row = sheet_width // frame_width
+        cells_per_col = sheet_height // frame_height
 
         packed_sheets = []
         current_frame = 0
 
         for sheet_index in range(num_sheets):
             sprite_sheet = np.zeros((sheet_height, sheet_width, 3), dtype=np.uint8)
-            for row in range(side_count):
-                for col in range(side_count):
+            for row in range(cells_per_col):
+                for col in range(cells_per_row):
                     if current_frame < total_frames:
                         frame = images_np[current_frame]
                         resized_frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
@@ -72,7 +114,7 @@ class PackFrames:
             packed_sheets.append(sprite_sheet)
 
         packed_sheets_tensor = [convert_numpy_to_tensor(sheet) for sheet in packed_sheets]
-        return torch.stack(packed_sheets_tensor), frame_width, frame_height
+        return torch.stack(packed_sheets_tensor), frame_width, frame_height, cells_per_row, cells_per_col
 
 class UnpackFrames:
     @classmethod
