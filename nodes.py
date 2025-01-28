@@ -22,6 +22,8 @@ def convert_numpy_to_tensor(numpy_image):
     """ Convert processed numpy image back to tensor and normalize it. """
     return torch.from_numpy(numpy_image).float() / 255
 
+
+
 class AddGridBoundaries:
     @classmethod
     def INPUT_TYPES(cls):
@@ -70,7 +72,7 @@ class PackFrames:
                 "images": ("IMAGE", {"tooltip": "Input images to be packed"}),
             },
             "optional": {
-                "num_sheets": ("INT", {"default": 8, "min": 8, "max": 64, "step": 8}),
+                "num_sheets": ("INT", {"default": 8, "min": 1, "max": 64, "step": 1}),
                 "sheet_width": ("INT", {"default": 2048, "min": 1024, "max": 5120, "step": 512}),
                 "sheet_height": ("INT", {"default": 2048, "min": 1024, "max": 5120, "step": 512}),
                 "min_frame_width": ("INT", {"default": 512, "min": 512, "max": 5120, "step": 512}),
