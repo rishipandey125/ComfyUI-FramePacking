@@ -24,6 +24,38 @@ def convert_numpy_to_tensor(numpy_image):
 
 
 
+class ResizeFrame:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "frame_width": ("INT", {"default": 4, "min": 1, "tooltip": "Input frame width"}),
+                "frame_height": ("INT", {"default": 4, "min": 1, "tooltip": "Input frame height"}),
+                "resolution": ("INT", {"default": 768, "min": 1, "tooltip": "Resize resolution"}),
+            },
+        }
+
+    RETURN_TYPES = ("INT","INT")
+    RETURN_NAMES = ("width","height")
+    FUNCTION = "resize_frame"
+    CATEGORY = "Image Processing"
+
+    def resize_frame(self, frame_width, frame_height, resolution):
+        width = frame_width
+        height = frame_height
+        
+        if (frame_width > resolution or frame_height > resolution): 
+            if frame_width > frame_height: 
+                width = resolution
+                height = resolution * (frame_height / frame_width)
+            else:
+                height = resolution
+                width = resolution * (frame_width / frame_height)
+        width = int(width)
+        height = int(height)
+        
+        return (width, height)
+
 class AddGridBoundaries:
     @classmethod
     def INPUT_TYPES(cls):
