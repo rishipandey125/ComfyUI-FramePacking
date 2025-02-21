@@ -41,19 +41,19 @@ class ResizeFrame:
     CATEGORY = "Image Processing"
 
     def resize_frame(self, frame_width, frame_height, resolution):
-        width = frame_width
-        height = frame_height
-        
-        if (frame_width > resolution or frame_height > resolution): 
-            if frame_width > frame_height: 
-                width = resolution
-                height = resolution * (frame_height / frame_width)
-            else:
-                height = resolution
-                width = resolution * (frame_width / frame_height)
-        width = int(width)
-        height = int(height)
-        
+        aspect_ratio = frame_width / frame_height
+        max_pixels = resolution * resolution  # The max pixel count constraint
+
+        # Compute an initial guess for width and height
+        scale_factor = (max_pixels / (frame_width * frame_height)) ** 0.5
+        width = int(frame_width * scale_factor)
+        height = int(frame_height * scale_factor)
+
+        # Ensure that the total pixel count is within bounds
+        while width * height > max_pixels:
+            width -= 1
+            height = int(width / aspect_ratio)
+
         return (width, height)
 
 class AddGridBoundaries:
