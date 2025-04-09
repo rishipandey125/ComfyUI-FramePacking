@@ -42,19 +42,23 @@ class ResizeFrame:
 
     def resize_frame(self, frame_width, frame_height, resolution):
         aspect_ratio = frame_width / frame_height
-        max_pixels = resolution * resolution  # The max pixel count constraint
+        max_pixels = resolution * resolution
 
-        # Compute an initial guess for width and height
-        scale_factor = (max_pixels / (frame_width * frame_height)) ** 0.5
-        width = int(frame_width * scale_factor)
-        height = int(frame_height * scale_factor)
+        # Start from max possible width divisible by 32
+        max_width = int((max_pixels * aspect_ratio) ** 0.5)
+        max_width -= max_width % 32
 
-        # Ensure that the total pixel count is within bounds
-        while width * height > max_pixels:
-            width -= 1
-            height = int(width / aspect_ratio)
+        while max_width > 0:
+            height = int(max_width / aspect_ratio)
+            height -= height % 32
 
-        return (width, height)
+            if max_width * height <= max_pixels:
+                return (max_width, height)
+
+            max_width -= 32  # Try next smaller multiple
+
+        # Fallback
+        return (32, 32)
 
 class AddGridBoundaries:
     @classmethod
