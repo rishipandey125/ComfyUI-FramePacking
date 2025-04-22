@@ -31,7 +31,7 @@ class ResizeFrame:
             "required": {
                 "frame_width": ("INT", {"default": 4, "min": 1, "tooltip": "Input frame width"}),
                 "frame_height": ("INT", {"default": 4, "min": 1, "tooltip": "Input frame height"}),
-                "resolution": ("INT", {"default": 768, "min": 1, "tooltip": "Resize resolution"}),
+                "max_dimension": ("INT", {"default": 768, "min": 16, "step": 16, "tooltip": "Maximum dimension (width or height)"}),
             },
         }
 
@@ -40,163 +40,141 @@ class ResizeFrame:
     FUNCTION = "resize_frame"
     CATEGORY = "Image Processing"
 
-    def resize_frame(self, frame_width, frame_height, resolution):
+    def resize_frame(self, frame_width, frame_height, max_dimension):
+        # Ensure max_dimension is a multiple of 16
+        max_dimension = (max_dimension // 16) * 16
+        
+        # Calculate aspect ratio
         aspect_ratio = frame_width / frame_height
-        max_pixels = resolution * resolution
+        
+        # Determine which dimension is larger
+        if frame_width >= frame_height:
+            # Width is larger or equal
+            new_width = min(frame_width, max_dimension)
+            new_width = (new_width // 16) * 16  # Round down to nearest multiple of 16
+            new_height = int(new_width / aspect_ratio)
+            new_height = (new_height // 16) * 16  # Round down to nearest multiple of 16
+        else:
+            # Height is larger
+            new_height = min(frame_height, max_dimension)
+            new_height = (new_height // 16) * 16  # Round down to nearest multiple of 16
+            new_width = int(new_height * aspect_ratio)
+            new_width = (new_width // 16) * 16  # Round down to nearest multiple of 16
+        
+        # Ensure we don't end up with zero dimensions
+        new_width = max(16, new_width)
+        new_height = max(16, new_height)
+        
+        return (new_width, new_height)
 
-        # Start from max possible width divisible by 32
-        max_width = int((max_pixels * aspect_ratio) ** 0.5)
-        max_width -= max_width % 32
 
-        while max_width > 0:
-            height = int(max_width / aspect_ratio)
-            height -= height % 32
-
-            if max_width * height <= max_pixels:
-                return (max_width, height)
-
-            max_width -= 32  # Try next smaller multiple
-
-        # Fallback
-        return (32, 32)
-
-class AddGridBoundaries:
+class ThresholdImage:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "images": ("IMAGE", {"tooltip": "Input images (edge maps) to add grid boundaries"}),
-                "cells_per_row": ("INT", {"default": 4, "min": 1, "tooltip": "Number of grid cells per row"}),
-                "cells_per_col": ("INT", {"default": 4, "min": 1, "tooltip": "Number of grid cells per column"}),
+                "images": ("IMAGE", {"tooltip": "Input edge maps to binarize"}),
+                "threshold": ("FLOAT", {
+                    "default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01,
+                    "tooltip": "Threshold from 0.0 to 1.0 — pixels below are black, above are white"
+                }),
             },
         }
 
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("images_with_grid",)
-    FUNCTION = "add_grid_boundaries"
+    RETURN_NAMES = ("binarized_images",)
+    FUNCTION = "threshold_images"
     CATEGORY = "Image Processing"
 
-    def add_grid_boundaries(self, images, cells_per_row, cells_per_col):
-        # Convert tensor images to numpy array
-        images_np = convert_tensor_to_numpy(images)
-        
-        # Iterate over each image to add grid lines
-        for image in images_np:
-            height, width, channels = image.shape
-            row_height = height // cells_per_col
-            col_width = width // cells_per_row
-            
-            # Draw grid lines
-            for i in range(1, cells_per_row):
-                x = i * col_width
-                image[:, x - 1:x + 1] = 255  # Vertical grid line, adjust thickness as needed
-            
-            for j in range(1, cells_per_col):
-                y = j * row_height
-                image[y - 1:y + 1, :] = 255  # Horizontal grid line, adjust thickness as needed
-        
-        # Convert numpy images back to tensor
-        images_with_grid_tensor = convert_numpy_to_tensor(images_np)
-        
-        return (images_with_grid_tensor,)
+    def threshold_images(self, images, threshold):
+        images_np = convert_tensor_to_numpy(images)  # shape: [B, H, W, 3], dtype: uint8 or float32
 
-class PackFrames:
+        binarized_images = []
+        threshold_255 = threshold * 255.0
+
+        for image in images_np:
+            # If image is in float [0, 1], scale it to [0, 255]
+            if image.dtype == np.float32 and image.max() <= 1.0:
+                image = (image * 255).astype(np.uint8)
+
+            # Grayscale using luminosity method
+            grayscale = (0.2989 * image[..., 0] + 0.5870 * image[..., 1] + 0.1140 * image[..., 2])
+
+            # Apply threshold
+            binary = (grayscale >= threshold_255).astype(np.uint8) * 255
+
+            # Convert back to RGB
+            binarized_rgb = np.stack([binary]*3, axis=-1).astype(np.uint8)
+            binarized_images.append(binarized_rgb)
+
+        binarized_np = np.stack(binarized_images, axis=0)
+        binarized_tensor = convert_numpy_to_tensor(binarized_np)
+
+        return (binarized_tensor,)
+
+
+
+
+class PadBatchTo4nPlus1:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "images": ("IMAGE", {"tooltip": "Input images to be packed"}),
-            },
-            "optional": {
-                "num_sheets": ("INT", {"default": 8, "min": 1, "max": 64, "step": 1}),
-                "sheet_width": ("INT", {"default": 2048, "min": 1024, "max": 5120, "step": 512}),
-                "sheet_height": ("INT", {"default": 2048, "min": 1024, "max": 5120, "step": 512}),
-                "min_frame_width": ("INT", {"default": 512, "min": 512, "max": 5120, "step": 512}),
-                "min_frame_height": ("INT", {"default": 512, "min": 512, "max": 5120, "step": 512}),
+                "images": ("IMAGE", {"tooltip": "Input images to be padded to 4n+1 size"}),
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "INT", "INT", "INT")
-    RETURN_NAMES = ("sheets", "frame_width", "frame_height", "cells_per_row", "cells_per_col")
-    FUNCTION = "pack_frames"
-    CATEGORY = "FramePack"
+    RETURN_TYPES = ("IMAGE", "INT", "INT")
+    RETURN_NAMES = ("padded_images", "original_count", "total_count")
+    FUNCTION = "pad_batch"
+    CATEGORY = "Image Processing"
 
-    def pack_frames(self, images, num_sheets, sheet_width, sheet_height, min_frame_width, min_frame_height):
-        images_np = convert_tensor_to_numpy(images)
+    def pad_batch(self, images):
+        # Get the current batch size
+        current_size = images.shape[0]
+        
+        # Calculate the next 4n+1 size
+        n = math.ceil((current_size - 1) / 4)
+        target_size = 4 * n + 1
+        
+        # If we're already at a 4n+1 size, return as is
+        if current_size == target_size:
+            return (images, current_size, target_size)
+            
+        # Calculate how many frames we need to pad
+        padding_size = target_size - current_size
+        
+        # Get the last frame to repeat
+        last_frame = images[-1]
+        
+        # Create the padding frames by repeating the last frame
+        padding_frames = last_frame.unsqueeze(0).repeat(padding_size, 1, 1, 1)
+        
+        # Concatenate the original frames with the padding frames
+        padded_images = torch.cat([images, padding_frames], dim=0)
+        
+        return (padded_images, current_size, target_size)
 
-        total_frames = images_np.shape[0]
-        frames_per_sheet = math.ceil(total_frames / num_sheets)
-        side_count = math.ceil(math.sqrt(frames_per_sheet))
-        frame_width = max(min_frame_width, sheet_width // side_count)
-        frame_height = max(min_frame_height, sheet_height // side_count)
-        cells_per_row = sheet_width // frame_width
-        cells_per_col = sheet_height // frame_height
-
-        packed_sheets = []
-        current_frame = 0
-
-        for sheet_index in range(num_sheets):
-            sprite_sheet = np.zeros((sheet_height, sheet_width, 3), dtype=np.uint8)
-            for row in range(cells_per_col):
-                for col in range(cells_per_row):
-                    if current_frame < total_frames:
-                        frame = images_np[current_frame]
-                        resized_frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
-                    else:
-                        resized_frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)  # Black frame
-
-                    x = col * frame_width
-                    y = row * frame_height
-                    sprite_sheet[y:y + frame_height, x:x + frame_width] = resized_frame
-                    current_frame += 1
-            packed_sheets.append(sprite_sheet)
-
-        packed_sheets_tensor = [convert_numpy_to_tensor(sheet) for sheet in packed_sheets]
-        return torch.stack(packed_sheets_tensor), frame_width, frame_height, cells_per_row, cells_per_col
-
-class UnpackFrames:
+class TrimPaddedBatch:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "images": ("IMAGE", {"tooltip": "Sprite sheets containing packed images"}),
-                "frame_width": ("INT", {"default": 512, "min": 1, "max": 5120, "step": 1}),
-                "frame_height": ("INT", {"default": 512, "min": 1, "max": 5120, "step": 1}),
+                "images": ("IMAGE", {"tooltip": "Padded images to be trimmed"}),
+                "original_count": ("INT", {"default": 1, "min": 1, "tooltip": "Original number of frames before padding"}),
             },
-            "optional": {
-                "frame_count": ("INT", {"default": None, "min": 1, "tooltip": "Maximum number of frames to extract"})
-            }
         }
 
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("frames",)
-    FUNCTION = "unpack_frames"
-    CATEGORY = "FrameUnpack"
+    RETURN_NAMES = ("trimmed_images",)
+    FUNCTION = "trim_batch"
+    CATEGORY = "Image Processing"
 
-    def unpack_frames(self, images, frame_width, frame_height, frame_count=None):
-        # Convert tensor of images to numpy for processing
-        images_np = convert_tensor_to_numpy(images)
-
-        unpacked_frames = []
-        current_frame_count = 0
+    def trim_batch(self, images, original_count):
+        # Ensure original_count is not larger than the current batch size
+        original_count = min(original_count, images.shape[0])
         
-        for image in images_np:
-            rows = image.shape[0] // frame_height
-            cols = image.shape[1] // frame_width
-            for row in range(rows):
-                for col in range(cols):
-                    if frame_count is not None and current_frame_count >= frame_count:
-                        break
-                    x = col * frame_width
-                    y = row * frame_height
-                    frame = image[y:y + frame_height, x:x + frame_width]
-                    unpacked_frames.append(frame)
-                    current_frame_count += 1
-                if frame_count is not None and current_frame_count >= frame_count:
-                    break
-            if frame_count is not None and current_frame_count >= frame_count:
-                break
+        # Trim the batch to the original size
+        trimmed_images = images[:original_count]
         
-        # Convert unpacked frames back to tensors
-        unpacked_frames_tensors = [convert_numpy_to_tensor(frame) for frame in unpacked_frames]
-        return torch.stack(unpacked_frames_tensors),
+        return (trimmed_images,)

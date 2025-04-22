@@ -9,10 +9,10 @@ from .nodes import *
 #Unpack Frames
 
 NODE_CLASS_MAPPINGS = {
-    "Add Grid Boundaries": AddGridBoundaries,
-    "Pack Frames": PackFrames,
-    "Unpack Frames": UnpackFrames,
+    "Threshold Image": ThresholdImage,
     "Resize Frame": ResizeFrame,
+    "Pad Batch to 4n+1": PadBatchTo4nPlus1,
+    "Trim Padded Batch": TrimPaddedBatch,
 }
 
 
