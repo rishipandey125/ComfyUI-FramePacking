@@ -41,42 +41,31 @@ class ResizeFrame:
     CATEGORY = "Image Processing"
 
     def resize_frame(self, frame_width, frame_height, resolution):
-        # Ensure resolution is a multiple of 16
-        resolution = (resolution // 16) * 16
+        # Calculate maximum allowed pixels
         max_pixels = resolution * resolution
         
         # Calculate aspect ratio
         aspect_ratio = frame_width / frame_height
         
-        # Start with the larger dimension
+        # Calculate initial dimensions based on aspect ratio
         if frame_width >= frame_height:
-            # Try to maximize width first
-            new_width = min(frame_width, resolution)
-            new_width = (new_width // 16) * 16
+            # Start with width
+            new_width = frame_width
             new_height = int(new_width / aspect_ratio)
-            new_height = (new_height // 16) * 16
-            
-            # If this exceeds max_pixels, scale down proportionally
-            if new_width * new_height > max_pixels:
-                scale = math.sqrt(max_pixels / (new_width * new_height))
-                new_width = int(new_width * scale)
-                new_width = (new_width // 16) * 16
-                new_height = int(new_width / aspect_ratio)
-                new_height = (new_height // 16) * 16
         else:
-            # Try to maximize height first
-            new_height = min(frame_height, resolution)
-            new_height = (new_height // 16) * 16
+            # Start with height
+            new_height = frame_height
             new_width = int(new_height * aspect_ratio)
-            new_width = (new_width // 16) * 16
-            
-            # If this exceeds max_pixels, scale down proportionally
-            if new_width * new_height > max_pixels:
-                scale = math.sqrt(max_pixels / (new_width * new_height))
-                new_height = int(new_height * scale)
-                new_height = (new_height // 16) * 16
-                new_width = int(new_height * aspect_ratio)
-                new_width = (new_width // 16) * 16
+        
+        # If the initial dimensions exceed max_pixels, scale down proportionally
+        if new_width * new_height > max_pixels:
+            scale = math.sqrt(max_pixels / (new_width * new_height))
+            new_width = int(new_width * scale)
+            new_height = int(new_height * scale)
+        
+        # Ensure dimensions are multiples of 16
+        new_width = (new_width // 16) * 16
+        new_height = (new_height // 16) * 16
         
         # Ensure we don't end up with zero dimensions
         new_width = max(16, new_width)
