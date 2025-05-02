@@ -184,3 +184,23 @@ class TrimPaddedBatch:
         trimmed_images = images[:original_count]
         
         return (trimmed_images,)
+
+class GetImageDimensions:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE", {"tooltip": "Input image to get dimensions from"}),
+            },
+        }
+
+    RETURN_TYPES = ("INT", "INT")
+    RETURN_NAMES = ("width", "height")
+    FUNCTION = "get_dimensions"
+    CATEGORY = "Image Processing"
+
+    def get_dimensions(self, image):
+        # Get dimensions from the image tensor
+        # Image tensor shape is [batch, height, width, channels]
+        height, width = image.shape[1:3]
+        return (width, height)

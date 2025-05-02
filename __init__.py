@@ -13,6 +13,7 @@ NODE_CLASS_MAPPINGS = {
     "Resize Frame": ResizeFrame,
     "Pad Batch to 4n+1": PadBatchTo4nPlus1,
     "Trim Padded Batch": TrimPaddedBatch,
+    "Get Image Dimensions": GetImageDimensions
 }
 
 
