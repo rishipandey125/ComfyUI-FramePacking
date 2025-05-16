@@ -5,7 +5,7 @@ import time
 
 #  ComfyUI Modules
 import folder_paths
-from comfy.utils import ProgressBar
+from comfy.utils import ProgressBar, common_upscale
 
 import cv2
 import numpy as np
@@ -204,3 +204,60 @@ class GetImageDimensions:
         # Image tensor shape is [batch, height, width, channels]
         height, width = image.shape[1:3]
         return (width, height)
+
+class SlotFrame:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "num_frames": ("INT", {"default": 81, "min": 1, "max": 10000, "step": 4, "tooltip": "Number of frames to encode"}),
+            "empty_frame_level": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "White level of empty frame to use"}),
+            "slot_image": ("IMAGE", {"tooltip": "Image to place in the specified slot"}),
+            "slot_index": ("INT", {"default": 0, "min": 0, "max": 10000, "step": 1, "tooltip": "Index where to place the slot image"}),
+            },
+            "optional": {
+                "control_images": ("IMAGE",),
+                "inpaint_mask": ("MASK", {"tooltip": "Inpaint mask to use for the empty frames"}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "MASK", )
+    RETURN_NAMES = ("images", "masks",)
+    FUNCTION = "process"
+    CATEGORY = "Image Processing"
+    DESCRIPTION = "Places a single image at a specified index in a sequence of frames"
+
+    def process(self, num_frames, empty_frame_level, slot_image, slot_index, control_images=None, inpaint_mask=None):
+        B, H, W, C = slot_image.shape
+        device = slot_image.device
+
+        masks = torch.ones((num_frames, H, W), device=device)
+
+        if control_images is not None:
+            control_images = common_upscale(control_images.movedim(-1, 1), W, H, "lanczos", "disabled").movedim(1, -1)
+        
+        # Create empty frames
+        if control_images is None:
+            empty_frames = torch.ones((num_frames, H, W, 3), device=device) * empty_frame_level
+        else:
+            empty_frames = control_images[:num_frames]
+        
+        # Ensure slot_index is within bounds
+        slot_index = min(slot_index, num_frames - 1)
+        
+        # Replace the frame at slot_index with slot_image
+        empty_frames[slot_index:slot_index + slot_image.shape[0]] = slot_image
+        
+        # Create mask for the slot image
+        masks[slot_index:slot_index + slot_image.shape[0]] = 0
+
+        if inpaint_mask is not None:
+            inpaint_mask = common_upscale(inpaint_mask.unsqueeze(1), W, H, "nearest-exact", "disabled").squeeze(1).to(device)
+            if inpaint_mask.shape[0] > num_frames:
+                inpaint_mask = inpaint_mask[:num_frames]
+            elif inpaint_mask.shape[0] < num_frames:
+                inpaint_mask = inpaint_mask.repeat(num_frames // inpaint_mask.shape[0] + 1, 1, 1)[:num_frames]
+
+            empty_mask = torch.ones_like(masks, device=device)
+            masks = inpaint_mask * empty_mask
+    
+        return (empty_frames.cpu().float(), masks.cpu().float())
