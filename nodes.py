@@ -23,6 +23,46 @@ def convert_numpy_to_tensor(numpy_image):
     return torch.from_numpy(numpy_image).float() / 255
 
 
+class BatchKeyframes:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image_1": ("IMAGE",),
+                "method": (["nearest-exact", "bilinear", "area", "bicubic", "lanczos"], { "default": "lanczos" }),
+            }, "optional": {
+                "image_2": ("IMAGE",),
+                "image_3": ("IMAGE",),
+                "image_4": ("IMAGE",),
+                "image_5": ("IMAGE",),
+            },
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "execute"
+    CATEGORY = "essentials/image batch"
+
+    def execute(self, image_1, method, image_2=None, image_3=None, image_4=None, image_5=None):
+        out = image_1
+
+        if image_2 is not None:
+            if image_1.shape[1:] != image_2.shape[1:]:
+                image_2 = comfy.utils.common_upscale(image_2.movedim(-1,1), image_1.shape[2], image_1.shape[1], method, "center").movedim(1,-1)
+            out = torch.cat((image_1, image_2), dim=0)
+        if image_3 is not None:
+            if image_1.shape[1:] != image_3.shape[1:]:
+                image_3 = comfy.utils.common_upscale(image_3.movedim(-1,1), image_1.shape[2], image_1.shape[1], method, "center").movedim(1,-1)
+            out = torch.cat((out, image_3), dim=0)
+        if image_4 is not None:
+            if image_1.shape[1:] != image_4.shape[1:]:
+                image_4 = comfy.utils.common_upscale(image_4.movedim(-1,1), image_1.shape[2], image_1.shape[1], method, "center").movedim(1,-1)
+            out = torch.cat((out, image_4), dim=0)
+        if image_5 is not None:
+            if image_1.shape[1:] != image_5.shape[1:]:
+                image_5 = comfy.utils.common_upscale(image_5.movedim(-1,1), image_1.shape[2], image_1.shape[1], method, "center").movedim(1,-1)
+            out = torch.cat((out, image_5), dim=0)
+
+        return (out,)
+
 
 class ResizeFrame:
     @classmethod
