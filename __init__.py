@@ -15,7 +15,8 @@ NODE_CLASS_MAPPINGS = {
     "Trim Padded Batch": TrimPaddedBatch,
     "Get Image Dimensions": GetImageDimensions,
     "Slot Frame": SlotFrame,
-    "Batch Keyframes": BatchKeyframes
+    "Batch Keyframes": BatchKeyframes,
+    "Image Mix RGB": ImageMixRGB,
 }
 
 

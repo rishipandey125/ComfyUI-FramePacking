@@ -64,6 +64,53 @@ class BatchKeyframes:
         return (out,)
 
 
+class ImageMixRGB:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image_r": ("IMAGE", {"tooltip": "Image for the Red channel"}),
+                "image_g": ("IMAGE", {"tooltip": "Image for the Green channel"}),
+                "image_b": ("IMAGE", {"tooltip": "Image for the Blue channel"}),
+                "method": (["nearest-exact", "bilinear", "area", "bicubic", "lanczos"], { "default": "lanczos" }),
+            },
+        }
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "mix_rgb"
+    CATEGORY = "Image Processing"
+    DESCRIPTION = "Creates an image from the R, G, and B channels of three different images."
+
+    def mix_rgb(self, image_r, image_g, image_b, method):
+        h_ref, w_ref = image_r.shape[1], image_r.shape[2]
+
+        if image_g.shape[1:3] != (h_ref, w_ref):
+            image_g = common_upscale(image_g.movedim(-1, 1), w_ref, h_ref, method, "center").movedim(1, -1)
+        if image_b.shape[1:3] != (h_ref, w_ref):
+            image_b = common_upscale(image_b.movedim(-1, 1), w_ref, h_ref, method, "center").movedim(1, -1)
+        
+        b_r, b_g, b_b = image_r.shape[0], image_g.shape[0], image_b.shape[0]
+        
+        max_b = max(b_r, b_g, b_b)
+        if b_r == 1 and max_b > 1: image_r = image_r.repeat(max_b, 1, 1, 1)
+        if b_g == 1 and max_b > 1: image_g = image_g.repeat(max_b, 1, 1, 1)
+        if b_b == 1 and max_b > 1: image_b = image_b.repeat(max_b, 1, 1, 1)
+        
+        b_r, b_g, b_b = image_r.shape[0], image_g.shape[0], image_b.shape[0]
+        if not (b_r == b_g == b_b):
+            min_b = min(b_r, b_g, b_b)
+            image_r = image_r[:min_b]
+            image_g = image_g[:min_b]
+            image_b = image_b[:min_b]
+
+        r_channel = image_r[..., 0]
+        g_channel = image_g[..., 1]
+        b_channel = image_b[..., 2]
+
+        combined = torch.stack([r_channel, g_channel, b_channel], dim=-1)
+        return (combined,)
+
+
 class ResizeFrame:
     @classmethod
     def INPUT_TYPES(cls):
